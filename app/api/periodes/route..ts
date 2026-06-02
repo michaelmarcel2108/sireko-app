@@ -1,0 +1,31 @@
+import { NextResponse } from 'next/server';
+import { supabase } from '@/utils/supabase';
+
+export async function GET() {
+  const { data, error } = await supabase.from('periodes').select('*').order('id', { ascending: false });
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json(data);
+}
+
+export async function POST(request: Request) {
+  try {
+    const body = await request.json();
+    const { bulan, tahun, keterangan } = body;
+
+    const { data, error } = await supabase
+      .from('periodes')
+      .insert([{
+        bulan,
+        tahun: parseInt(tahun),
+        keterangan,
+      }])
+      .select();
+
+    if (error) throw error;
+
+    return NextResponse.json(data[0], { status: 201 });
+  } catch (error: any) {
+    return NextResponse.json({ message: "Gagal menambahkan periode baru", error: error.message }, { status: 500 });
+  }
+}
