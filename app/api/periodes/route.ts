@@ -2,11 +2,16 @@ import { NextResponse } from 'next/server';
 import { supabase } from '@/utils/supabase';
 
 export async function GET() {
-  const { data, error } = await supabase.from('periodes').select('*').order('id', { ascending: false });
+  const { data, error } = await supabase
+    .from('periodes')
+    .select('*')
+    .order('tahun', { ascending: false })
+    .order('id', { ascending: false }); // Urutkan dari yang terbaru
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json(data);
 }
+
 
 export async function POST(request: Request) {
   try {
