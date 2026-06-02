@@ -23,9 +23,12 @@ export async function POST(request: Request) {
       .select();
 
     if (error) throw error;
-
+    
     return NextResponse.json(data[0], { status: 201 });
   } catch (error: any) {
+    // ⬇️ TAMBAHKAN BARIS INI DI SINI ⬇️
+    console.error("DETAIL ERROR SUPABASE:", error);
+    
     return NextResponse.json({ message: "Gagal menambahkan periode baru", error: error.message }, { status: 500 });
   }
 }
