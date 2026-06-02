@@ -1,24 +1,24 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/utils/supabase';
 
-// Mengambil 1 laporan spesifik untuk form Edit
-export async function GET(request: Request, { params }: { params: { id: string } }) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const resolvedParams = await params;
+  
   const { data, error } = await supabase
     .from('laporan_keuangan')
     .select('*, periodes(bulan, tahun)')
-    .eq('id', params.id)
+    .eq('id', resolvedParams.id)
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json(data);
 }
 
-// Memperbarui laporan (Edit)
-export async function PUT(request: Request, { params }: { params: { id: string } }) {
+export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const body = await request.json();
+    const resolvedParams = await params;
     
-    // Kalkulasi ulang total simpanan
     const totalSimpanan = Number(body.simpananPokok) + Number(body.simpananWajib) + Number(body.simpananSukarela);
 
     const { error } = await supabase
@@ -27,12 +27,12 @@ export async function PUT(request: Request, { params }: { params: { id: string }
         total_anggota: parseInt(body.totalAnggota),
         simpanan_pokok: Number(body.simpananPokok),
         simpanan_wajib: Number(body.simpananWajib),
-        simpanan_sukarela: Number(body.simpananSukarela),
+        simpanan_sukarela: Number(body.simpanan_sukarela),
         total_simpanan: totalSimpanan,
         pinjaman_berjalan: Number(body.pinjamanBerjalan),
         shu_bersih: Number(body.shuBersih)
       })
-      .eq('id', params.id);
+      .eq('id', resolvedParams.id);
 
     if (error) throw error;
     return NextResponse.json({ success: true });
@@ -41,12 +41,13 @@ export async function PUT(request: Request, { params }: { params: { id: string }
   }
 }
 
-// Menghapus laporan
-export async function DELETE(request: Request, { params }: { params: { id: string } }) {
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const resolvedParams = await params;
+  
   const { error } = await supabase
     .from('laporan_keuangan')
     .delete()
-    .eq('id', params.id);
+    .eq('id', resolvedParams.id);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ success: true });
