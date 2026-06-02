@@ -133,7 +133,7 @@ export default function DashboardPage() {
                       <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(value: number) => formatRupiah(value)} />
+                  <Tooltip formatter={(value: any) => formatRupiah(Number(value) || 0)} />
                   <Legend 
                     iconType="circle" 
                     layout="vertical" 
@@ -181,7 +181,7 @@ export default function DashboardPage() {
                       tickFormatter={(value) => `Rp${value / 1000000}M`} 
                     />
                     <Tooltip 
-                      formatter={(value: number) => formatRupiah(value)}
+                      formatter={(value: any) => formatRupiah(Number(value) || 0)}
                       contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                     />
                     <Legend iconType="circle" verticalAlign="top" wrapperStyle={{ fontSize: '14px', paddingBottom: '20px' }}/>
