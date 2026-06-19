@@ -1,237 +1,120 @@
-"use client";
+// app/page.tsx
+import { getKeragaanData, getLegalitasData, getKesehatanData } from '@/utils/api-koperasi';
+import DashboardCharts from '@/components/DashboardCharts';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Building2, Users, Wallet, CheckCircle2 } from 'lucide-react';
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { 
-  AreaChart, 
-  Area, 
-  PieChart, 
-  Pie, 
-  Cell,
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  Legend, 
-  ResponsiveContainer 
-} from "recharts";
+export const revalidate = 60; 
 
-export default function UserDashboardPage() {
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+export default async function Home() {
+  // Ambil ketiga data sekaligus
+  const [keragaan, legalitas, kesehatan] = await Promise.all([
+    getKeragaanData(),
+    getLegalitasData(),
+    getKesehatanData(),
+  ]);
 
-  // Mengambil data ringkasan dari API yang sudah ada
-  useEffect(() => {
-    fetch("/api/dashboard/summary")
-      .then((res) => res.json())
-      .then((result) => {
-        setData(result);
-        setLoading(false);
-      });
-  }, []);
+  // 1. STATISTIK KARTU (Sekarang tanpa border kiri berwarna)
+  const totalKoperasi = keragaan.length;
+  const totalAnggota = keragaan.reduce((sum: number, item: any) => sum + (Number(item.jumlah_anggota) || 0), 0);
+  const totalAset = keragaan.reduce((sum: number, item: any) => sum + (Number(item.aset) || 0), 0);
+  const koperasiAktif = legalitas.filter((item: any) => item.status_aktif === 'Aktif' || item.status_aktif === true).length;
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 space-y-4">
-        <div className="w-16 h-16 border-4 border-teal-600 border-t-transparent rounded-full animate-spin"></div>
-        <div className="text-xl font-semibold text-teal-700">Memuat Data Transparansi SIREKO...</div>
-      </div>
-    );
-  }
+  // 2. DATA KURVA GARIS (Aset per Kecamatan)
+  const asetPerKecamatan: Record<string, number> = {};
+  keragaan.forEach((item: any) => {
+    const kec = item.kecamatan || 'Lainnya';
+    asetPerKecamatan[kec] = (asetPerKecamatan[kec] || 0) + (Number(item.aset) || 0);
+  });
+  const lineChartData = Object.keys(asetPerKecamatan).map((kec) => ({
+    name: kec,
+    Aset: asetPerKecamatan[kec],
+  }));
 
-  // Format data untuk grafik
-  const chartData = data?.riwayat?.slice().reverse().map((item: any) => ({
-    name: `${item.periodes.bulan.substring(0, 3)} ${item.periodes.tahun}`,
-    "Total Simpanan": Number(item.total_simpanan),
-    "Pinjaman Berjalan": Number(item.pinjaman_berjalan),
-    "SHU Bersih": Number(item.shu_bersih),
-  })) || [];
+  // 3. DATA KURVA DONAT (Variasi 4 Predikat Kesehatan)
+  let countSehat = 0;
+  let countCukup = 0;
+  let countKurang = 0;
+  let countPengawasan = 0;
 
-  const pieData = [
-    { name: "Simpanan Pokok", value: Number(data?.komposisiSimpanan?.pokok || 0) },
-    { name: "Simpanan Wajib", value: Number(data?.komposisiSimpanan?.wajib || 0) },
-    { name: "Simpanan Sukarela", value: Number(data?.komposisiSimpanan?.sukarela || 0) },
-  ];
-  
-  const PIE_COLORS = ["#0f766e", "#14b8a6", "#34d399"];
+  kesehatan.forEach((item: any) => {
+    const predikat = item.predikat_kesehatan;
+    if (predikat === 'Sehat') countSehat++;
+    else if (predikat === 'Cukup Sehat') countCukup++;
+    else if (predikat === 'Kurang Sehat') countKurang++;
+    else countPengawasan++;
+  });
+
+  // Menyusun data donat, membuang data yang jumlahnya 0 agar donat tetap rapi
+  const donutChartData = [
+    { name: 'Sehat', value: countSehat, color: '#10b981' },           // Hijau
+    { name: 'Cukup Sehat', value: countCukup, color: '#3b82f6' },     // Biru
+    { name: 'Kurang Sehat', value: countKurang, color: '#f59e0b' },   // Kuning/Oranye
+    { name: 'Dalam Pengawasan', value: countPengawasan, color: '#ef4444' }, // Merah
+  ].filter(data => data.value > 0);
 
   const formatRupiah = (value: number) => {
-    return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(value);
+    return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(value);
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 sm:p-6 lg:p-8">
-      <div className="max-w-7xl mx-auto space-y-8">
-        
-        {/* Header Public Dashboard */}
-        <div className="flex flex-col md:flex-row justify-between items-center bg-teal-700 text-white p-6 md:p-8 rounded-2xl shadow-lg">
-          <div className="flex flex-col md:flex-row items-center text-center md:text-left space-y-4 md:space-y-0 md:space-x-6 mb-6 md:mb-0">
-            <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center shadow-inner">
-              <span className="text-3xl font-bold text-teal-700">SR</span>
-            </div>
-            <div>
-              <h1 className="text-3xl sm:text-4xl font-bold mb-2">Portal Transparansi SIREKO</h1>
-              <p className="text-teal-100 text-base sm:text-lg">
-                Sistem Rekapan & Laporan Keuangan Koperasi
-              </p>
-            </div>
-          </div>
-          <Link href="/admin">
-            <Button size="lg" variant="secondary" className="bg-white text-teal-800 hover:bg-teal-50 font-bold shadow-md transition-transform hover:scale-105">
-              Login Admin
-            </Button>
-          </Link>
-        </div>
-
-        {/* Kartu Ringkasan Data Utama */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          <Card className="border-none shadow-md hover:shadow-lg transition-shadow">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-                Total Anggota
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-4xl font-extrabold text-gray-800">{data?.totalAnggota}</div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-none shadow-md hover:shadow-lg transition-shadow">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-                Total Simpanan
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-teal-600">
-                {formatRupiah(data?.totalSimpanan || 0)}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-none shadow-md hover:shadow-lg transition-shadow">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-                Pinjaman Berjalan
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-teal-600">
-                {formatRupiah(data?.pinjamanBerjalan || 0)}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-none shadow-md hover:shadow-lg transition-shadow">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-                Total SHU Terkumpul
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-teal-600">
-                {formatRupiah(data?.totalSHU || 0)}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Visualisasi Grafik */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          
-          {/* Grafik Donut Komposisi */}
-          <Card className="lg:col-span-1 border-none shadow-md">
-            <CardHeader className="border-b bg-gray-50/50">
-              <CardTitle className="text-lg font-bold text-gray-800">Komposisi Simpanan</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col items-center justify-center pt-6">
-              <div className="h-[320px] w-full"> 
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart margin={{ top: 10, bottom: 20 }}>
-                    <Pie
-                      data={pieData}
-                      cx="50%"
-                      cy="45%"
-                      innerRadius={70} 
-                      outerRadius={90}
-                      paddingAngle={5}
-                      dataKey="value"
-                      stroke="none"
-                    >
-                      {pieData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip formatter={(value: any) => formatRupiah(Number(value) || 0)} />
-                    <Legend 
-                      iconType="circle" 
-                      layout="vertical" 
-                      verticalAlign="bottom" 
-                      wrapperStyle={{ fontSize: '14px', paddingTop: '20px' }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Grafik Area Tren Keuangan */}
-          <Card className="lg:col-span-2 border-none shadow-md">
-            <CardHeader className="border-b bg-gray-50/50">
-              <CardTitle className="text-lg font-bold text-gray-800">Tren Keuangan Koperasi</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-6">
-              {chartData.length > 0 ? (
-                <div className="h-[320px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-                      <defs>
-                        <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#14b8a6" stopOpacity={0.4}/>
-                          <stop offset="95%" stopColor="#14b8a6" stopOpacity={0}/>
-                        </linearGradient>
-                        <linearGradient id="colorPinjaman" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#0f766e" stopOpacity={0.4}/>
-                          <stop offset="95%" stopColor="#0f766e" stopOpacity={0}/>
-                        </linearGradient>
-                        <linearGradient id="colorSHU" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#042f2e" stopOpacity={0.4}/>
-                          <stop offset="95%" stopColor="#042f2e" stopOpacity={0}/>
-                        </linearGradient>
-                      </defs>
-
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
-                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 13 }} dy={10} />
-                      <YAxis 
-                        axisLine={false} 
-                        tickLine={false} 
-                        tick={{ fill: '#6b7280', fontSize: 13 }} 
-                        tickFormatter={(value) => `Rp${value / 1000000}M`} 
-                      />
-                      <Tooltip 
-                        formatter={(value: any) => formatRupiah(Number(value) || 0)}
-                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                      />
-                      <Legend iconType="circle" verticalAlign="top" wrapperStyle={{ fontSize: '14px', paddingBottom: '20px' }}/>
-                      
-                      <Area type="monotone" dataKey="Total Simpanan" stroke="#14b8a6" strokeWidth={3} fillOpacity={1} fill="url(#colorTotal)" />
-                      <Area type="monotone" dataKey="Pinjaman Berjalan" stroke="#0f766e" strokeWidth={3} fillOpacity={1} fill="url(#colorPinjaman)" />
-                      <Area type="monotone" dataKey="SHU Bersih" stroke="#042f2e" strokeWidth={3} fillOpacity={1} fill="url(#colorSHU)" />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-              ) : (
-                <div className="h-[320px] flex items-center justify-center text-muted-foreground border-2 border-dashed rounded-xl bg-gray-50/50">
-                  Belum ada data riwayat laporan keuangan.
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-        </div>
+    <div className="container mx-auto py-10 px-4 md:px-8 bg-slate-50 min-h-screen">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold tracking-tight text-slate-900">Dashboard Utama</h1>
+        <p className="text-muted-foreground mt-1">Ringkasan eksekutif data koperasi Kabupaten Buleleng.</p>
       </div>
+
+      {/* Baris Kartu - Polos tanpa border kiri berwarna */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <Card className="shadow-sm">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total Koperasi</CardTitle>
+            <Building2 className="w-4 h-4 text-blue-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{totalKoperasi}</div>
+            <p className="text-xs text-muted-foreground mt-1">Unit terdaftar di sistem</p>
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-sm">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Koperasi Aktif</CardTitle>
+            <CheckCircle2 className="w-4 h-4 text-green-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{koperasiAktif}</div>
+            <p className="text-xs text-muted-foreground mt-1">Sesuai data legalitas</p>
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-sm">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total Anggota</CardTitle>
+            <Users className="w-4 h-4 text-orange-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{totalAnggota.toLocaleString('id-ID')}</div>
+            <p className="text-xs text-muted-foreground mt-1">Orang tergabung</p>
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-sm">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total Aset Keseluruhan</CardTitle>
+            <Wallet className="w-4 h-4 text-purple-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold truncate" title={formatRupiah(totalAset)}>
+              {formatRupiah(totalAset)}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">Akumulasi seluruh kecamatan</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <DashboardCharts lineData={lineChartData} donutData={donutChartData} />
+
     </div>
   );
 }
