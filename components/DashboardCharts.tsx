@@ -11,33 +11,27 @@ interface ChartProps {
 }
 
 export default function DashboardCharts({ lineData, donutData }: ChartProps) {
-  // Fungsi untuk memformat angka menjadi Rupiah
   const formatRupiah = (value: number) => {
-    return new Intl.NumberFormat('id-ID', { 
-      style: 'currency', 
-      currency: 'IDR', 
-      maximumFractionDigits: 0 
-    }).format(value);
+    return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(value);
   };
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-8">
       
-      {/* KURVA GARIS (Perkembangan Aset) */}
+      {/* KURVA GARIS */}
       <div className="lg:col-span-2 bg-white p-6 rounded-xl border shadow-sm">
         <h3 className="text-lg font-bold mb-4 text-gray-800">Perkembangan Aset per Kecamatan</h3>
         <div className="h-[300px] w-full">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={lineData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+            {/* Margin diperbesar agar teks tidak terpotong tepi layar */}
+            <LineChart data={lineData} margin={{ top: 10, right: 30, bottom: 25, left: 10 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-              {/* YAxis dipersingkat menjadi Milyar (M) agar tidak terlalu panjang */}
-              <YAxis tickFormatter={(value) => `Rp ${value / 1000000000}M`} tick={{ fontSize: 12 }} />
-              
-              {/* PERBAIKAN ERROR TYPESCRIPT VERCEL (value: any) */}
+              {/* tickMargin memberi jarak antara teks dan garis sumbu bawah */}
+              <XAxis dataKey="name" tick={{ fontSize: 12 }} tickMargin={10} />
+              {/* width={80} memastikan teks "Rp ...M" punya ruang luas dan tidak terpotong di kiri */}
+              <YAxis tickFormatter={(value) => `Rp ${value / 1000000000}M`} tick={{ fontSize: 12 }} width={80} />
               <Tooltip formatter={(value: any) => [formatRupiah(Number(value)), "Total Aset"]} />
-              
-              <Legend />
+              <Legend wrapperStyle={{ paddingTop: "15px" }} />
               <Line 
                 type="monotone" 
                 dataKey="Aset" 
@@ -52,7 +46,7 @@ export default function DashboardCharts({ lineData, donutData }: ChartProps) {
         </div>
       </div>
 
-      {/* KURVA DONAT (Kesehatan Koperasi) */}
+      {/* KURVA DONAT */}
       <div className="bg-white p-6 rounded-xl border shadow-sm">
         <h3 className="text-lg font-bold mb-4 text-gray-800">Predikat Kesehatan</h3>
         <div className="h-[300px] w-full relative flex items-center justify-center">
@@ -62,7 +56,7 @@ export default function DashboardCharts({ lineData, donutData }: ChartProps) {
                 data={donutData}
                 cx="50%"
                 cy="50%"
-                innerRadius={70} // Membuat lubang di tengah agar berbentuk donat
+                innerRadius={70}
                 outerRadius={100}
                 paddingAngle={5}
                 dataKey="value"
@@ -76,8 +70,7 @@ export default function DashboardCharts({ lineData, donutData }: ChartProps) {
             </PieChart>
           </ResponsiveContainer>
           
-          {/* Teks total angka di tengah Donat */}
-          <div className="absolute text-center pointer-events-none">
+          <div className="absolute text-center pointer-events-none pb-6">
             <span className="block text-3xl font-bold text-gray-800">
               {donutData.reduce((acc, curr) => acc + curr.value, 0)}
             </span>

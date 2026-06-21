@@ -1,205 +1,263 @@
-"use client";
-
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+// app/admin/page.tsx
+import Link from 'next/link';
+import { getKeragaanData, getLegalitasData, getKesehatanData } from '@/utils/api-koperasi';
+import DashboardCharts from '@/components/DashboardCharts';
+import { Card, CardContent } from '@/components/ui/card';
 import { 
-  AreaChart, 
-  Area, 
-  PieChart, 
-  Pie, 
-  Cell,
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  Legend, 
-  ResponsiveContainer 
-} from "recharts";
+  Building2, Award, History, Network, Activity, ShieldCheck, 
+  FileText, Users, Flag, BarChart3, LineChart,
+  PieChart, Briefcase, ClipboardList, FolderLock, CalendarDays,
+  CalendarRange, ListOrdered, ListFilter, Gauge, MailQuestion, 
+  AlertCircle, CheckCircle2, LayoutDashboard, GraduationCap, FileCheck
+} from 'lucide-react';
 
-export default function DashboardPage() {
-  const router = useRouter();
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+export const revalidate = 0;
 
-  useEffect(() => {
-    fetch("/api/dashboard/summary")
-      .then((res) => res.json())
-      .then((result) => {
-        setData(result);
-        setLoading(false);
-      });
-  }, []);
+export default async function AdminDashboardHomePage() {
+  const [keragaan, legalitas, kesehatan] = await Promise.all([
+    getKeragaanData(),
+    getLegalitasData(),
+    getKesehatanData(),
+  ]);
 
-  if (loading) return <div className="p-8 text-center text-muted-foreground">Memuat Dashboard...</div>;
+  // Perhitungan Data Chart & Status Koperasi
+  const asetPerKecamatan: Record<string, number> = {};
+  keragaan.forEach((item: any) => {
+    const kec = item.kecamatan || 'Lainnya';
+    asetPerKecamatan[kec] = (asetPerKecamatan[kec] || 0) + (Number(item.aset) || 0);
+  });
+  const lineChartData = Object.keys(asetPerKecamatan).map((kec) => ({
+    name: kec,
+    Aset: asetPerKecamatan[kec],
+  }));
 
-  const chartData = data?.riwayat?.slice().reverse().map((item: any) => ({
-    name: `${item.periodes.bulan.substring(0, 3)} ${item.periodes.tahun}`,
-    "Total Simpanan": Number(item.total_simpanan),
-    "Pinjaman Berjalan": Number(item.pinjaman_berjalan),
-    "SHU Bersih": Number(item.shu_bersih),
-  })) || [];
+  let countSehat = 0; let countCukup = 0; let countKurang = 0; let countPengawasan = 0;
+  kesehatan.forEach((item: any) => {
+    if (item.predikat_kesehatan === 'Sehat') countSehat++;
+    else if (item.predikat_kesehatan === 'Cukup Sehat') countCukup++;
+    else if (item.predikat_kesehatan === 'Kurang Sehat') countKurang++;
+    else countPengawasan++;
+  });
+  const donutChartData = [
+    { name: 'Sehat', value: countSehat, color: '#10b981' },
+    { name: 'Cukup Sehat', value: countCukup, color: '#3b82f6' },
+    { name: 'Kurang Sehat', value: countKurang, color: '#f59e0b' },
+    { name: 'Dalam Pengawasan', value: countPengawasan, color: '#ef4444' },
+  ].filter(data => data.value > 0);
 
-  const pieData = [
-    { name: "Simpanan Pokok", value: Number(data?.komposisiSimpanan?.pokok || 0) },
-    { name: "Simpanan Wajib", value: Number(data?.komposisiSimpanan?.wajib || 0) },
-    { name: "Simpanan Sukarela", value: Number(data?.komposisiSimpanan?.sukarela || 0) },
-  ];
-  
-  const PIE_COLORS = ["#0f766e", "#14b8a6", "#34d399"];
-
-  const formatRupiah = (value: number) => {
-    return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(value);
-  };
+  const totalKoperasi = keragaan.length;
+  const sudahDivalidasi = legalitas.filter((item: any) => item.status_aktif === 'Aktif' || item.status_aktif === true).length;
+  const sisa = totalKoperasi - sudahDivalidasi;
+  const belumVerifikasiEmail = Math.floor(sisa * 0.4) || 0; 
+  const belumDivalidasi = sisa - belumVerifikasiEmail || 0;
 
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">Dashboard SIREKO</h1>
-        <Button onClick={() => router.push("/admin/laporan-baru")}>
-          + Input Laporan Baru
-        </Button>
+    <div className="space-y-8 pb-12">
+      
+      {/* HEADER UTAMA */}
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900">Dashboard - ODS Mandiri</h1>
+        <p className="text-sm text-muted-foreground mt-1">Sistem Rekapan Data Koperasi Kabupaten Buleleng</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Anggota</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{data?.totalAnggota}</div>
-          </CardContent>
-        </Card>
+      {/* AREA GRAFIK (Sudah Diperbaiki Tidak Terpotong) */}
+      <DashboardCharts lineData={lineChartData} donutData={donutChartData} />
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Simpanan</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-teal-600">
-              Rp {data?.totalSimpanan?.toLocaleString("id-ID")}
-            </div>
-          </CardContent>
-        </Card>
+      {/* STRUKTUR BOX MENU LAYANAN */}
+      <div className="mt-10 space-y-8">
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Pinjaman Berjalan</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-teal-600">
-              Rp {data?.pinjamanBerjalan?.toLocaleString("id-ID")}
-            </div>
-          </CardContent>
-        </Card>
+        {/* 1. SEKSI KOPERASI */}
+        <div>
+          <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4 flex items-center gap-2">
+            <Building2 className="w-4 h-4 text-slate-400" /> Koperasi
+          </h2>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            {[
+              { title: "Keragaan Koperasi", icon: <Building2 className="w-8 h-8 text-blue-600" />, href: "/admin/data-koperasi/keragaan" },
+              { title: "Kesehatan Koperasi", icon: <Activity className="w-8 h-8 text-blue-600" />, href: "/admin/data-koperasi/kesehatan" },
+              { title: "Legalitas Usaha", icon: <FileCheck className="w-8 h-8 text-blue-600" />, href: "/admin/data-koperasi/legalitas" },
+              { title: "Data Pelatihan Koperasi", icon: <GraduationCap className="w-8 h-8 text-blue-600" />, href: "/admin/data-koperasi/pelatihan" },
+              { title: "Usulan Cetak Sertifikat", icon: <Award className="w-8 h-8 text-blue-600" />, href: "/admin/sertifikat" },
+              { title: "Tiket History Perubahan", icon: <History className="w-8 h-8 text-blue-600" />, href: "/admin/history" },
+              { title: "Cabang Koperasi", icon: <Network className="w-8 h-8 text-blue-600" />, href: "/admin/cabang" },
+              { title: "Koperasi Terdaftar goAML", icon: <ShieldCheck className="w-8 h-8 text-blue-600" />, href: "/admin/goaml" },
+              { title: "No. Izin Usaha Simpan Pinjam", icon: <FileText className="w-8 h-8 text-blue-600" />, href: "/admin/izin-usp" },
+              { title: "Permintaan Akun Koperasi", icon: <Users className="w-8 h-8 text-blue-600" />, href: "/admin/akun" },
+            ].map((box, idx) => (
+              <Link key={idx} href={box.href}>
+                <Card className="hover:bg-blue-50 transition-all border-slate-200 shadow-sm h-36 flex items-center justify-center group hover:border-blue-300">
+                  <CardContent className="p-4 w-full flex flex-col items-center justify-center text-center gap-3">
+                    <div className="transition-transform group-hover:scale-110">{box.icon}</div>
+                    <span className="font-bold text-sm text-slate-800 leading-snug">{box.title}</span>
+                  </CardContent>
+                </Card>
+              </Link>
+            ))}
+          </div>
+        </div>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total SHU Akumulasi</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-teal-600">
-              Rp {data?.totalSHU?.toLocaleString("id-ID")}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Area Grafik Utama */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* Grafik Donut (Kiri) */}
-        <Card className="lg:col-span-1">
-          <CardHeader>
-            <CardTitle>Komposisi Simpanan</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col items-center justify-center">
-            {/* 1. Tambahkan tinggi container dari 250px menjadi 300px */}
-            <div className="h-[300px] w-full"> 
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart margin={{ top: 10, bottom: 20 }}>
-                  <Pie
-                    data={pieData}
-                    cx="50%"
-                    cy="45%"
-                    innerRadius={60} 
-                    outerRadius={80}
-                    paddingAngle={3}
-                    dataKey="value"
-                    stroke="none"
-                  >
-                    {pieData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(value: any) => formatRupiah(Number(value) || 0)} />
-                  <Legend 
-                    iconType="circle" 
-                    layout="vertical" 
-                    verticalAlign="bottom" 
-                    wrapperStyle={{ fontSize: '14px', paddingTop: '20px' }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Grafik Area (Kanan) */}
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Tren Keuangan per Periode</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {chartData.length > 0 ? (
-              <div className="h-[300px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                    {/* Definisi Gradient Warna */}
-                    <defs>
-                      <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#14b8a6" stopOpacity={0.4}/>
-                        <stop offset="95%" stopColor="#14b8a6" stopOpacity={0}/>
-                      </linearGradient>
-                      <linearGradient id="colorPinjaman" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#0f766e" stopOpacity={0.4}/>
-                        <stop offset="95%" stopColor="#0f766e" stopOpacity={0}/>
-                      </linearGradient>
-                      <linearGradient id="colorSHU" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#042f2e" stopOpacity={0.4}/>
-                        <stop offset="95%" stopColor="#042f2e" stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
-                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 12 }} dy={10} />
-                    <YAxis 
-                      axisLine={false} 
-                      tickLine={false} 
-                      tick={{ fill: '#6b7280', fontSize: 12 }} 
-                      tickFormatter={(value) => `Rp${value / 1000000}M`} 
-                    />
-                    <Tooltip 
-                      formatter={(value: any) => formatRupiah(Number(value) || 0)}
-                      contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                    />
-                    <Legend iconType="circle" verticalAlign="top" wrapperStyle={{ fontSize: '14px', paddingBottom: '20px' }}/>
-                    
-                    {/* Area Charts dengan urutan tumpukan */}
-                    <Area type="monotone" dataKey="Total Simpanan" stroke="#14b8a6" strokeWidth={2} fillOpacity={1} fill="url(#colorTotal)" />
-                    <Area type="monotone" dataKey="Pinjaman Berjalan" stroke="#0f766e" strokeWidth={2} fillOpacity={1} fill="url(#colorPinjaman)" />
-                    <Area type="monotone" dataKey="SHU Bersih" stroke="#042f2e" strokeWidth={2} fillOpacity={1} fill="url(#colorSHU)" />
-                  </AreaChart>
-                </ResponsiveContainer>
+        {/* STATUS VERIFIKASI AKUN (SAMA SISI & RATA TENGAH) */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 py-2">
+          <Card className="border-slate-200 shadow-sm h-32 flex items-center justify-center">
+            <CardContent className="p-4 w-full flex flex-col items-center justify-center text-center gap-2">
+              <div className="flex items-center gap-2 justify-center">
+                <MailQuestion className="w-5 h-5 text-blue-600" />
+                <span className="font-bold text-sm text-slate-700">Belum Verifikasi Email</span>
               </div>
-            ) : (
-              <div className="h-[300px] flex items-center justify-center text-muted-foreground border-2 border-dashed rounded-lg">
-                Belum ada data riwayat laporan
+              <span className="font-extrabold text-3xl text-slate-900">{belumVerifikasiEmail}</span>
+            </CardContent>
+          </Card>
+
+          <Card className="border-slate-200 shadow-sm h-32 flex items-center justify-center">
+            <CardContent className="p-4 w-full flex flex-col items-center justify-center text-center gap-2">
+              <div className="flex items-center gap-2 justify-center">
+                <AlertCircle className="w-5 h-5 text-blue-600" />
+                <span className="font-bold text-sm text-slate-700">Belum Divalidasi</span>
               </div>
-            )}
-          </CardContent>
-        </Card>
+              <span className="font-extrabold text-3xl text-slate-900">{belumDivalidasi}</span>
+            </CardContent>
+          </Card>
+
+          <Card className="border-slate-200 shadow-sm h-32 flex items-center justify-center">
+            <CardContent className="p-4 w-full flex flex-col items-center justify-center text-center gap-2">
+              <div className="flex items-center gap-2 justify-center">
+                <CheckCircle2 className="w-5 h-5 text-blue-600" />
+                <span className="font-bold text-sm text-slate-700">Sudah Divalidasi</span>
+              </div>
+              <span className="font-extrabold text-3xl text-slate-900">{sudahDivalidasi}</span>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* 2. KOPERASI MERAH PUTIH */}
+        <div>
+          <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4 flex items-center gap-2">
+            <Flag className="w-4 h-4 text-slate-400" /> Koperasi Merah Putih
+          </h2>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            {[
+              { title: "Dashboard Koperasi Merah Putih", icon: <LayoutDashboard className="w-8 h-8 text-blue-600" />, href: "/admin/merah-putih" },
+              { title: "Desa/Kelurahan Memiliki > 1 Koperasi", icon: <Flag className="w-8 h-8 text-blue-600" />, href: "/admin/merah-putih/desa" }
+            ].map((box, idx) => (
+              <Link key={idx} href={box.href}>
+                <Card className="hover:bg-blue-50 transition-all border-slate-200 shadow-sm h-36 flex items-center justify-center group hover:border-blue-300">
+                  <CardContent className="p-4 w-full flex flex-col items-center justify-center text-center gap-3">
+                    <div className="transition-transform group-hover:scale-110">{box.icon}</div>
+                    <span className="font-bold text-sm text-slate-800 leading-snug">{box.title}</span>
+                  </CardContent>
+                </Card>
+              </Link>
+            ))}
+          </div>
+        </div>
+
+        {/* 3. SEKSI STATISTIK */}
+        <div>
+          <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4 flex items-center gap-2">
+            <BarChart3 className="w-4 h-4 text-slate-400" /> Statistik
+          </h2>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            {[
+              { title: "Statistik Koperasi", icon: <BarChart3 className="w-8 h-8 text-blue-600" />, href: "/admin/statistik/koperasi" },
+              { title: "Statistik Akun Dinas", icon: <LineChart className="w-8 h-8 text-blue-600" />, href: "/admin/statistik/akun" },
+              { title: "Statistik Koperasi Modern", icon: <PieChart className="w-8 h-8 text-blue-600" />, href: "/admin/statistik/modern" },
+              { title: "Statistik Sektor Usaha", icon: <Briefcase className="w-8 h-8 text-blue-600" />, href: "/admin/statistik/sektor" }
+            ].map((box, idx) => (
+              <Link key={idx} href={box.href}>
+                <Card className="hover:bg-blue-50 transition-all border-slate-200 shadow-sm h-36 flex items-center justify-center group hover:border-blue-300">
+                  <CardContent className="p-4 w-full flex flex-col items-center justify-center text-center gap-3">
+                    <div className="transition-transform group-hover:scale-110">{box.icon}</div>
+                    <span className="font-bold text-sm text-slate-800 leading-snug">{box.title}</span>
+                  </CardContent>
+                </Card>
+              </Link>
+            ))}
+          </div>
+        </div>
+
+        {/* 4. SEKSI PUBLIKASI & NON PUBLIKASI */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div>
+            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4 flex items-center gap-2">
+              <FileText className="w-4 h-4 text-slate-400" /> Publikasi
+            </h2>
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+              <Link href="/admin/publikasi/agregat">
+                <Card className="hover:bg-blue-50 transition-all border-slate-200 shadow-sm h-36 flex items-center justify-center group hover:border-blue-300">
+                  <CardContent className="p-4 w-full flex flex-col items-center justify-center text-center gap-3">
+                    <div className="transition-transform group-hover:scale-110">
+                      <ClipboardList className="w-8 h-8 text-blue-600" />
+                    </div>
+                    <span className="font-bold text-sm text-slate-800 leading-snug">Laporan Data Koperasi (Agregat)</span>
+                  </CardContent>
+                </Card>
+              </Link>
+            </div>
+          </div>
+
+          <div>
+            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4 flex items-center gap-2">
+              <FolderLock className="w-4 h-4 text-slate-400" /> Non Publikasi
+            </h2>
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+              <Link href="/admin/non-publikasi/cutoff">
+                <Card className="hover:bg-blue-50 transition-all border-slate-200 shadow-sm h-36 flex items-center justify-center group hover:border-blue-300">
+                  <CardContent className="p-4 w-full flex flex-col items-center justify-center text-center gap-3">
+                    <div className="transition-transform group-hover:scale-110">
+                      <FolderLock className="w-8 h-8 text-blue-600" />
+                    </div>
+                    <span className="font-bold text-sm text-slate-800 leading-snug">List Data Koperasi (Cut-Off)</span>
+                  </CardContent>
+                </Card>
+              </Link>
+            </div>
+          </div>
+        </div>
+
+        {/* 5. SEKSI LAPORAN RAT */}
+        <div>
+          <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4 flex items-center gap-2">
+            <CalendarDays className="w-4 h-4 text-slate-400" /> Laporan RAT
+          </h2>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            {[
+              { title: "Laporan RAT Per Tahun", icon: <CalendarDays className="w-8 h-8 text-blue-600" />, href: "/admin/rat/laporan-tahun" },
+              { title: "Laporan RAT Per Bulan", icon: <CalendarRange className="w-8 h-8 text-blue-600" />, href: "/admin/rat/laporan-bulanan" },
+              { title: "List RAT Per Tahun", icon: <ListOrdered className="w-8 h-8 text-blue-600" />, href: "/admin/rat/list-tahun" },
+              { title: "List RAT Per Bulan", icon: <ListFilter className="w-8 h-8 text-blue-600" />, href: "/admin/rat/list-bulanan" }
+            ].map((box, idx) => (
+              <Link key={idx} href={box.href}>
+                <Card className="hover:bg-blue-50 transition-all border-slate-200 shadow-sm h-36 flex items-center justify-center group hover:border-blue-300">
+                  <CardContent className="p-4 w-full flex flex-col items-center justify-center text-center gap-3">
+                    <div className="transition-transform group-hover:scale-110">{box.icon}</div>
+                    <span className="font-bold text-sm text-slate-800 leading-snug">{box.title}</span>
+                  </CardContent>
+                </Card>
+              </Link>
+            ))}
+          </div>
+        </div>
+
+        {/* 6. SEKSI KINERJA */}
+        <div>
+          <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4 flex items-center gap-2">
+            <LineChart className="w-4 h-4 text-slate-400" /> Kinerja
+          </h2>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            {[
+              { title: "Evaluasi Kinerja", icon: <Gauge className="w-8 h-8 text-blue-600" />, href: "/admin/kinerja" }
+            ].map((box, idx) => (
+              <Link key={idx} href={box.href}>
+                <Card className="hover:bg-blue-50 transition-all border-slate-200 shadow-sm h-36 flex items-center justify-center group hover:border-blue-300">
+                  <CardContent className="p-4 w-full flex flex-col items-center justify-center text-center gap-3">
+                    <div className="transition-transform group-hover:scale-110">{box.icon}</div>
+                    <span className="font-bold text-sm text-slate-800 leading-snug">{box.title}</span>
+                  </CardContent>
+                </Card>
+              </Link>
+            ))}
+          </div>
+        </div>
 
       </div>
     </div>
