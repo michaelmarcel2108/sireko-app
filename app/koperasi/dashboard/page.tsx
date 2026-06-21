@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { 
   Building2, Users, Wallet, CheckCircle2, 
   ShieldCheck, AlertCircle, FileEdit, LogOut, 
-  GraduationCap, FileCheck, Activity
+  GraduationCap, FileCheck, Activity, CalendarRange
 } from 'lucide-react';
 
 export const revalidate = 0;
