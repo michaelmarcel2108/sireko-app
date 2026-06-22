@@ -1,11 +1,11 @@
-// app/admin/rat/laporan-bulan/page.tsx
+// app/admin/kinerja/page.tsx
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { createServerClient } from '@supabase/ssr';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { CalendarDays, ChevronLeft, ChevronRight, CheckCircle2, Clock } from 'lucide-react';
+import { LineChart, ChevronLeft, ChevronRight, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import AdminSearch from '@/components/AdminSearch';
 
 export const revalidate = 0;
@@ -14,7 +14,7 @@ interface PageProps {
   searchParams: Promise<{ q?: string; page?: string }>;
 }
 
-export default async function AdminRatBulanPage({ searchParams }: PageProps) {
+export default async function AdminKinerjaPage({ searchParams }: PageProps) {
   const resolvedSearchParams = await searchParams;
   const cookieStore = await cookies();
   
@@ -41,14 +41,14 @@ export default async function AdminRatBulanPage({ searchParams }: PageProps) {
   const fromIndex = (currentPage - 1) * itemsPerPage;
   const toIndex = fromIndex + itemsPerPage - 1;
 
-  // Mapping nama koperasi
+  // 1. Mapping nama koperasi
   const { data: listKeragaan } = await supabase.from('keragaan_koperasi').select('user_id, nama_koperasi');
   const namaKoperasiMap = new Map();
   listKeragaan?.forEach(k => {
     if (k.user_id && k.nama_koperasi) namaKoperasiMap.set(String(k.user_id).trim().toLowerCase(), k.nama_koperasi.trim());
   });
 
-  // Filter ID koperasi
+  // 2. Filter ID koperasi
   let matchingUserIds: string[] = [];
   if (searchQuery) {
     const { data: matchedKoperasi } = await supabase.from('keragaan_koperasi').select('user_id').or(`nama_koperasi.ilike.%${searchQuery}%`);
@@ -57,43 +57,49 @@ export default async function AdminRatBulanPage({ searchParams }: PageProps) {
     }
   }
 
-  // Query tabel laporan RAT Bulanan (sesuaikan nama tabel di DB, misal: rat_bulan)
+  // 3. Query tabel evaluasi kinerja (asumsi nama tabel: evaluasi_kinerja)
   let dbQuery = supabase
-    .from('rat_bulan') 
+    .from('evaluasi_kinerja') 
     .select('*', { count: 'exact' })
     .order('tahun', { ascending: false })
-    .order('bulan', { ascending: false });
+    .order('skor', { ascending: false });
 
   if (searchQuery) {
     if (matchingUserIds.length > 0) {
-      dbQuery = dbQuery.or(`bulan.ilike.%${searchQuery}%,status_laporan.ilike.%${searchQuery}%,user_id.in.(${matchingUserIds.join(',')})`);
+      dbQuery = dbQuery.or(`kategori.ilike.%${searchQuery}%,user_id.in.(${matchingUserIds.join(',')})`);
     } else {
-      dbQuery = dbQuery.or(`bulan.ilike.%${searchQuery}%,status_laporan.ilike.%${searchQuery}%`);
+      dbQuery = dbQuery.or(`kategori.ilike.%${searchQuery}%`);
     }
   }
 
-  const { data: ratList, count } = await dbQuery.range(fromIndex, toIndex);
+  const { data: kinerjaList, count } = await dbQuery.range(fromIndex, toIndex);
   
   const totalCount = count || 0;
   const totalPages = Math.ceil(totalCount / itemsPerPage) || 1;
+
+  const getTrendIcon = (trend: string) => {
+    if (trend === 'naik') return <TrendingUp className="w-4 h-4 text-green-600" />;
+    if (trend === 'turun') return <TrendingDown className="w-4 h-4 text-red-600" />;
+    return <Minus className="w-4 h-4 text-slate-400" />;
+  };
 
   return (
     <div className="space-y-6 p-4 md:p-8 max-w-7xl mx-auto">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-extrabold tracking-tight text-slate-950 flex items-center gap-2">
-            <CalendarDays className="w-6 h-6 text-blue-600" /> Laporan RAT Bulanan
+            <LineChart className="w-6 h-6 text-blue-600" /> Evaluasi Kinerja
           </h1>
-          <p className="text-sm text-slate-500 font-medium">Monitoring pengumpulan berkas laporan rutin bulanan koperasi.</p>
+          <p className="text-sm text-slate-500 font-medium">Pemeringkatan dan monitoring skor performa koperasi tahunan.</p>
         </div>
       </div>
 
       <Card className="shadow-sm border-slate-200 bg-white">
         <CardHeader className="p-6 border-b border-slate-100 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div className="space-y-1">
-            <CardTitle className="text-lg font-bold text-slate-900">Daftar Pengumpulan Bulanan</CardTitle>
+            <CardTitle className="text-lg font-bold text-slate-900">Daftar Skor Kinerja</CardTitle>
             <CardDescription className="text-xs font-medium text-slate-400">
-              Total terdata: <span className="text-slate-700 font-bold">{totalCount}</span> laporan bulanan
+              Total terdata: <span className="text-slate-700 font-bold">{totalCount}</span> dokumen evaluasi
             </CardDescription>
           </div>
           <div className="flex flex-wrap items-center gap-3">
@@ -108,14 +114,15 @@ export default async function AdminRatBulanPage({ searchParams }: PageProps) {
                 <TableRow className="border-b border-slate-100">
                   <TableHead className="w-[50px] font-bold text-slate-500 text-center">No</TableHead>
                   <TableHead className="font-bold text-slate-500">Nama Koperasi</TableHead>
-                  <TableHead className="font-bold text-slate-500 text-center">Periode Bulan</TableHead>
                   <TableHead className="font-bold text-slate-500 text-center">Tahun</TableHead>
-                  <TableHead className="font-bold text-slate-500 text-center">Status Laporan</TableHead>
+                  <TableHead className="font-bold text-slate-500 text-center">Skor Kinerja</TableHead>
+                  <TableHead className="font-bold text-slate-500 text-center">Kategori</TableHead>
+                  <TableHead className="font-bold text-slate-500 text-center">Tren</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {ratList && ratList.length > 0 ? (
-                  ratList.map((item, index) => {
+                {kinerjaList && kinerjaList.length > 0 ? (
+                  kinerjaList.map((item, index) => {
                     const cleanUserId = item.user_id ? String(item.user_id).trim().toLowerCase() : '';
                     const namaKoperasi = namaKoperasiMap.get(cleanUserId) || 'Koperasi Tidak Diketahui';
 
@@ -123,25 +130,22 @@ export default async function AdminRatBulanPage({ searchParams }: PageProps) {
                       <TableRow key={item.id || index} className="hover:bg-slate-50/50 border-b border-slate-100">
                         <td className="text-center font-medium text-sm text-slate-500 py-3.5">{fromIndex + index + 1}</td>
                         <td className="font-bold text-sm text-slate-900 py-3.5">{namaKoperasi}</td>
-                        <td className="text-sm font-extrabold text-slate-700 text-center py-3.5 uppercase">{item.bulan || '-'}</td>
                         <td className="text-sm font-semibold text-slate-600 text-center py-3.5">{item.tahun || '-'}</td>
+                        <td className="text-sm font-extrabold text-blue-700 text-center py-3.5">{item.skor || 0}</td>
                         <td className="text-center py-3.5">
-                          {item.status_laporan?.toLowerCase() === 'diterima' || item.status_laporan?.toLowerCase() === 'disetujui' ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-green-100 text-green-800">
-                              <CheckCircle2 className="w-3 h-3" /> Diterima
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800">
-                              <Clock className="w-3 h-3" /> Menunggu Review
-                            </span>
-                          )}
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                            {item.kategori || 'Belum Dinilai'}
+                          </span>
+                        </td>
+                        <td className="text-center py-3.5 flex justify-center">
+                          {getTrendIcon(item.tren?.toLowerCase())}
                         </td>
                       </TableRow>
                     );
                   })
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-12 text-slate-400 font-medium">Data laporan RAT Bulanan tidak ditemukan.</TableCell>
+                    <TableCell colSpan={6} className="text-center py-12 text-slate-400 font-medium">Data evaluasi kinerja tidak ditemukan.</TableCell>
                   </TableRow>
                 )}
               </TableBody>
@@ -149,9 +153,7 @@ export default async function AdminRatBulanPage({ searchParams }: PageProps) {
           </div>
 
           <div className="p-4 border-t border-slate-100 flex items-center justify-between gap-4 bg-slate-50/40">
-            <span className="text-xs font-semibold text-slate-500">
-              Halaman <span className="font-bold text-slate-800">{currentPage}</span> dari <span className="font-bold text-slate-800">{totalPages}</span>
-            </span>
+            <span className="text-xs font-semibold text-slate-500">Halaman <span className="font-bold text-slate-800">{currentPage}</span> dari <span className="font-bold text-slate-800">{totalPages}</span></span>
             <div className="flex items-center gap-2">
               <Link href={`?q=${searchQuery}&page=${Math.max(1, currentPage - 1)}`} className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-md border text-xs font-bold transition-all shadow-sm ${currentPage <= 1 ? 'bg-slate-100 text-slate-400 pointer-events-none' : 'bg-white hover:bg-slate-50'}`}><ChevronLeft className="w-3.5 h-3.5" /> Sebelumnya</Link>
               <Link href={`?q=${searchQuery}&page=${Math.min(totalPages, currentPage + 1)}`} className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-md border text-xs font-bold transition-all shadow-sm ${currentPage >= totalPages ? 'bg-slate-100 text-slate-400 pointer-events-none' : 'bg-white hover:bg-slate-50'}`}>Selanjutnya <ChevronRight className="w-3.5 h-3.5" /></Link>

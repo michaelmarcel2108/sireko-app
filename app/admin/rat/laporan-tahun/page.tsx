@@ -1,4 +1,4 @@
-// app/admin/rat/laporan-bulan/page.tsx
+// app/admin/rat/laporan-tahun/page.tsx
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { createServerClient } from '@supabase/ssr';
@@ -14,7 +14,7 @@ interface PageProps {
   searchParams: Promise<{ q?: string; page?: string }>;
 }
 
-export default async function AdminRatBulanPage({ searchParams }: PageProps) {
+export default async function AdminRatTahunPage({ searchParams }: PageProps) {
   const resolvedSearchParams = await searchParams;
   const cookieStore = await cookies();
   
@@ -57,18 +57,18 @@ export default async function AdminRatBulanPage({ searchParams }: PageProps) {
     }
   }
 
-  // Query tabel laporan RAT Bulanan (sesuaikan nama tabel di DB, misal: rat_bulan)
+  // Query tabel laporan RAT Tahunan
   let dbQuery = supabase
-    .from('rat_bulan') 
+    .from('rat_tahun') // Pastikan tabel ini ada di database Anda
     .select('*', { count: 'exact' })
-    .order('tahun', { ascending: false })
-    .order('bulan', { ascending: false });
+    .order('tahun_buku', { ascending: false })
+    .order('created_at', { ascending: false });
 
   if (searchQuery) {
     if (matchingUserIds.length > 0) {
-      dbQuery = dbQuery.or(`bulan.ilike.%${searchQuery}%,status_laporan.ilike.%${searchQuery}%,user_id.in.(${matchingUserIds.join(',')})`);
+      dbQuery = dbQuery.or(`status_laporan.ilike.%${searchQuery}%,user_id.in.(${matchingUserIds.join(',')})`);
     } else {
-      dbQuery = dbQuery.or(`bulan.ilike.%${searchQuery}%,status_laporan.ilike.%${searchQuery}%`);
+      dbQuery = dbQuery.or(`status_laporan.ilike.%${searchQuery}%`);
     }
   }
 
@@ -82,18 +82,18 @@ export default async function AdminRatBulanPage({ searchParams }: PageProps) {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-extrabold tracking-tight text-slate-950 flex items-center gap-2">
-            <CalendarDays className="w-6 h-6 text-blue-600" /> Laporan RAT Bulanan
+            <CalendarDays className="w-6 h-6 text-blue-600" /> Laporan RAT Tahunan
           </h1>
-          <p className="text-sm text-slate-500 font-medium">Monitoring pengumpulan berkas laporan rutin bulanan koperasi.</p>
+          <p className="text-sm text-slate-500 font-medium">Monitoring kepatuhan pelaporan Rapat Anggota Tahunan Koperasi.</p>
         </div>
       </div>
 
       <Card className="shadow-sm border-slate-200 bg-white">
         <CardHeader className="p-6 border-b border-slate-100 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div className="space-y-1">
-            <CardTitle className="text-lg font-bold text-slate-900">Daftar Pengumpulan Bulanan</CardTitle>
+            <CardTitle className="text-lg font-bold text-slate-900">Daftar Pengumpulan RAT</CardTitle>
             <CardDescription className="text-xs font-medium text-slate-400">
-              Total terdata: <span className="text-slate-700 font-bold">{totalCount}</span> laporan bulanan
+              Total terdata: <span className="text-slate-700 font-bold">{totalCount}</span> laporan tahunan
             </CardDescription>
           </div>
           <div className="flex flex-wrap items-center gap-3">
@@ -108,8 +108,8 @@ export default async function AdminRatBulanPage({ searchParams }: PageProps) {
                 <TableRow className="border-b border-slate-100">
                   <TableHead className="w-[50px] font-bold text-slate-500 text-center">No</TableHead>
                   <TableHead className="font-bold text-slate-500">Nama Koperasi</TableHead>
-                  <TableHead className="font-bold text-slate-500 text-center">Periode Bulan</TableHead>
-                  <TableHead className="font-bold text-slate-500 text-center">Tahun</TableHead>
+                  <TableHead className="font-bold text-slate-500 text-center">Tahun Buku</TableHead>
+                  <TableHead className="font-bold text-slate-500 text-center">Tanggal Pelaksanaan</TableHead>
                   <TableHead className="font-bold text-slate-500 text-center">Status Laporan</TableHead>
                 </TableRow>
               </TableHeader>
@@ -123,8 +123,10 @@ export default async function AdminRatBulanPage({ searchParams }: PageProps) {
                       <TableRow key={item.id || index} className="hover:bg-slate-50/50 border-b border-slate-100">
                         <td className="text-center font-medium text-sm text-slate-500 py-3.5">{fromIndex + index + 1}</td>
                         <td className="font-bold text-sm text-slate-900 py-3.5">{namaKoperasi}</td>
-                        <td className="text-sm font-extrabold text-slate-700 text-center py-3.5 uppercase">{item.bulan || '-'}</td>
-                        <td className="text-sm font-semibold text-slate-600 text-center py-3.5">{item.tahun || '-'}</td>
+                        <td className="text-sm font-extrabold text-slate-700 text-center py-3.5">{item.tahun_buku || '-'}</td>
+                        <td className="text-sm font-medium text-slate-600 text-center py-3.5">
+                          {item.tanggal_pelaksanaan ? new Date(item.tanggal_pelaksanaan).toLocaleDateString('id-ID') : '-'}
+                        </td>
                         <td className="text-center py-3.5">
                           {item.status_laporan?.toLowerCase() === 'diterima' || item.status_laporan?.toLowerCase() === 'disetujui' ? (
                             <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-green-100 text-green-800">
@@ -141,7 +143,7 @@ export default async function AdminRatBulanPage({ searchParams }: PageProps) {
                   })
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-12 text-slate-400 font-medium">Data laporan RAT Bulanan tidak ditemukan.</TableCell>
+                    <TableCell colSpan={5} className="text-center py-12 text-slate-400 font-medium">Data laporan RAT Tahunan tidak ditemukan.</TableCell>
                   </TableRow>
                 )}
               </TableBody>
